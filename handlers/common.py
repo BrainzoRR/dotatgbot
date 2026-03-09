@@ -366,6 +366,13 @@ async def to_create_tag(msg: Message, state: FSMContext):
             u.organizer_id = org.id
         await s.commit()
 
+    # В конце to_create_tag, после await s.commit():
+        from handlers.admin.time_control import notify_admins_new_to
+        from aiogram import Bot
+        bot = Bot.get_current()
+        if bot:
+            await notify_admins_new_to(bot, org, u)
+
     await state.clear()
     await msg.answer(
         f"🏆 <b>Организация создана!</b>\n\n"
