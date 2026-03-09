@@ -61,7 +61,7 @@ async def _handle_time(msg: Message, action: str, parts: list):
             "Пауза: `нет`\n"
             "Патч: `7.37`\n\n"
             "_(Подключи реальную БД)_",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     elif action == "advance":
         n = int(parts[3]) if len(parts) > 3 else 1
@@ -69,7 +69,7 @@ async def _handle_time(msg: Message, action: str, parts: list):
         await msg.answer(
             f"⏭ *Продвинуто на {n} нед.*\n\n"
             "_(Подключи реальный weekly_tick)_",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     elif action == "pause":
         await msg.answer("⏸ Игра поставлена на паузу.")
@@ -85,7 +85,7 @@ async def _handle_tournament(msg: Message, action: str, parts: list):
         await msg.answer(
             "📋 *Ожидают одобрения:*\n\n"
             "_(Нет данных — подключи БД)_",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     elif action == "approve" and len(parts) > 3:
         tid = parts[3].lstrip("#")
@@ -97,7 +97,7 @@ async def _handle_tournament(msg: Message, action: str, parts: list):
         await msg.answer(
             f"✅ Турнир #{tid} одобрен.\n"
             + (f"💬 Комментарий: {comment}" if comment else ""),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     elif action == "reject" and len(parts) > 3:
         tid = parts[3].lstrip("#")
@@ -108,7 +108,7 @@ async def _handle_tournament(msg: Message, action: str, parts: list):
         await msg.answer(
             f"❌ Турнир #{tid} отклонён.\n"
             + (f"📝 Причина: {reason}" if reason else ""),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
 
 async def _handle_patch(msg: Message, action: str, parts: list):
@@ -125,7 +125,7 @@ async def _handle_patch(msg: Message, action: str, parts: list):
             "Изменения мета-тиров героев обновлены.\n"
             "Уведомления отправлены GM.\n"
             "_(Добавь реальное чтение JSON-файла)_",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
     elif action == "list":
         await msg.answer("📜 История патчей: _(подключи БД)_")
@@ -141,5 +141,5 @@ async def _handle_backup(msg: Message, action: str, parts: list):
             f"💾 *Бэкап создан:* `{filename}`\n"
             f"Заметка: {note}\n\n"
             "_(Добавь реальный pg_dump вызов)_",
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
