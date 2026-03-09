@@ -7,7 +7,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.storage.memory import MemoryStorage
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
 from config import settings
@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 async def main():
-    storage = RedisStorage.from_url(settings.redis_url)
+    storage = MemoryStorage()
     bot = Bot(token=settings.bot_token)
     dp = Dispatcher(storage=storage)
 
