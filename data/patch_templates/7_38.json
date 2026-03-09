@@ -1,0 +1,23 @@
+PATCH_7_38 = {
+    "version": "7.38",
+    "description": "Патч 7.38 — Nerfы поздней игры, баффы support",
+    "hero_tier_changes": {
+        "Anti-Mage":   "S→A",    # нерф Mana Break
+        "Dawnbreaker": "S→A",    # нерф Starbreaker
+        "Lina":        "S→S",    # без изменений
+        "Naga Siren":  "C→B",    # бафф Song of the Siren
+        "Tidehunter":  "A→S",    # бафф Ravage
+        "Rubick":      "S→A",    # нерф Aghanim's upgrade
+        "Io":          "A→S",    # бафф Tether
+        "Sniper":      "D→C",    # бафф Headshot
+    },
+    "role_meta_shift": {
+        "pos1": {"late_game_importance": +5},
+        "pos4": {"roaming_value": +10, "kill_participation": +5},
+    },
+    "global_changes": {
+        "early_game_importance": +0.03,
+        "teamfight_value": +0.02,
+        "farming_efficiency": -0.02,
+    },
+}
