@@ -45,7 +45,7 @@ async def cmd_roster(msg: Message):
     await msg.answer(
         "📋 *Ростер команды*\n\n"
         "_Нет данных. Убедись что ты GM и твоя команда в БД._",
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 @router.message(Command("player"))
@@ -58,7 +58,7 @@ async def cmd_player(msg: Message):
     await msg.answer(
         f"🔍 *Поиск игрока:* {nick}\n"
         "_Добавь подключение к БД для получения данных._",
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 @router.message(Command("market"))
@@ -68,5 +68,5 @@ async def cmd_market(msg: Message):
         "🛒 *Рынок свободных агентов*\n\n"
         "_Здесь будет список всех игроков без команды._\n"
         "_(Добавь DB-вызов)_",
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
