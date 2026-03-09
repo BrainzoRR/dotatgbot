@@ -26,17 +26,14 @@ async def main():
     dp.include_router(to_create_router)
     dp.include_router(admin_router)
     
-    # Создать таблицы (в продакшене используй Alembic)
-    from database.session import engine
-    from database.models import Base
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-     # Засеять данные
-    from data.seed_data import seed_all
-    from database.session import async_session
-    async with async_session() as s:
-        await seed_all(s)
+  # Создать таблицы
+async with engine.begin() as conn:
+    await conn.run_sync(Base.metadata.create_all)
+
+# Засеять данные (один раз)
+from data.seed_data import seed_all
+async with async_session() as s:
+    await seed_all(s)
     
     log.info("🎮 DOTA 2 FM запущен!")
     await dp.start_polling(bot, skip_updates=True)
