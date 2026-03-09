@@ -263,7 +263,7 @@ async def fsm_week(msg: Message, state: FSMContext):
     )
 
 @router.callback_query(TournamentCreateFSM.confirm, F.data.startswith("trn_confirm:"))
-async def fsm_confirm(cb: CallbackQuery, state: FSMContext):
+async def fsm_confirm(cb: CallbackQuery, state: FSMContext, bot: Bot):
     await cb.answer()
     action = cb.data.split(":")[1]
 
@@ -317,12 +317,7 @@ async def fsm_confirm(cb: CallbackQuery, state: FSMContext):
         f"Admin рассмотрит заявку и ты получишь уведомление."
     )
 
-    # ── Уведомить всех Admin ────────────────────────────────
-    from aiogram import Bot
-    bot = Bot.get_current()
-    if not bot:
-        # fallback: получить bot из контекста через другой способ
-        return
+ 
 
     notify_text = (
         f"📋 <b>НОВЫЙ ТУРНИР НА ОДОБРЕНИЕ #{trn_id}</b>\n\n"
