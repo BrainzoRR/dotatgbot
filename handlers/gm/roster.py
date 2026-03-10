@@ -48,25 +48,5 @@ async def cmd_roster(msg: Message):
         parse_mode="HTML"
     )
 
-@router.message(Command("player"))
-async def cmd_player(msg: Message):
-    args = msg.text.split(maxsplit=1)
-    if len(args) < 2:
-        return await msg.answer("Использование: /player <ник>")
-    nick = args[1]
-    # TODO: get_player_by_nick(session, nick) — добавь реальный вызов
-    await msg.answer(
-        f"🔍 *Поиск игрока:* {nick}\n"
-        "_Добавь подключение к БД для получения данных._",
-        parse_mode="HTML"
-    )
 
-@router.message(Command("market"))
-async def cmd_market(msg: Message):
-    # TODO: get_free_agents(session)
-    await msg.answer(
-        "🛒 *Рынок свободных агентов*\n\n"
-        "_Здесь будет список всех игроков без команды._\n"
-        "_(Добавь DB-вызов)_",
-        parse_mode="HTML"
-    )
+
