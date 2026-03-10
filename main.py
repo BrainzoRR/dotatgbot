@@ -18,6 +18,7 @@ from handlers.gm.roster import router as gm_roster_router
 from handlers.gm.match import router as gm_match_router
 from handlers.to.tournament_create import router as to_create_router
 from handlers.admin.time_control import router as admin_router
+from engine.formats.round_robin import rr_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -239,6 +240,7 @@ async def main():
     dp.include_router(gm_match_router)
     dp.include_router(to_create_router)
     dp.include_router(admin_router)
+    dp.include_router(rr_router)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
