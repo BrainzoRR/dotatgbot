@@ -1,4 +1,4 @@
-from aiogram import Router, F
+from aiogram import Router, F, Bot
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
@@ -12,27 +12,28 @@ from database.models import User, Team, Organizer
 log = logging.getLogger(__name__)
 router = Router()
 
+ROLE_NAMES = {1: "Carry", 2: "Mid", 3: "Offlane", 4: "Soft Sup", 5: "Hard Sup"}
+
 # ══════════════════════════════════════════════
-# FSM States
+# FSM
 # ══════════════════════════════════════════════
 class RegStates(StatesGroup):
-    choose_role   = State()
+    choose_role = State()
 
 class GMStates(StatesGroup):
-    choose_team   = State()   # выбор из списка
-    create_name   = State()   # создание своей команды
+    choose_team   = State()
+    create_name   = State()
     create_tag    = State()
     create_region = State()
 
 class TOStates(StatesGroup):
-    create_name   = State()
-    create_tag    = State()
+    create_name = State()
+    create_tag  = State()
 
 # ══════════════════════════════════════════════
 # Helpers
 # ══════════════════════════════════════════════
 def kb(*rows):
-    """Быстрое создание InlineKeyboard. rows = [[(text, data), ...], ...]"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t, callback_data=d) for t, d in row]
         for row in rows
@@ -41,20 +42,20 @@ def kb(*rows):
 def main_menu_kb(role: str):
     if role == "gm":
         return kb(
-            [("📋 Ростер", "menu_roster"),   ("🛒 Рынок", "menu_market")],
+            [("📋 Ростер", "menu_roster"),      ("🛒 Рынок", "menu_market")],
             [("📅 Расписание", "menu_schedule"), ("💰 Бюджет", "menu_budget")],
             [("🏆 Турниры", "menu_tournaments"), ("📊 DPC", "menu_dpc")],
-            [("👤 Профиль", "menu_profile")],
+            [("🌍 Рейтинг", "menu_rankings"),    ("👤 Профиль", "menu_profile")],
         )
     elif role == "to":
         return kb(
-            [("🏟 Создать турнир", "menu_to_create"), ("📋 Мои турниры", "menu_to_list")],
-            [("💼 Спонсоры", "menu_to_sponsors"), ("📊 Профиль TO", "menu_to_profile")],
+            [("🆕 Создать турнир", "menu_to_create"), ("📋 Мои турниры", "menu_to_list")],
+            [("💼 Спонсоры", "menu_to_sponsors"),     ("📊 Профиль TO", "menu_to_profile")],
         )
     else:
         return kb(
-            [("📊 Рейтинг команд", "menu_rankings"), ("🏆 Турниры", "menu_tournaments")],
-            [("👤 Профиль", "menu_profile")],
+            [("🌍 Рейтинг команд", "menu_rankings"), ("🏆 Турниры", "menu_tournaments")],
+            [("📊 DPC таблица", "menu_dpc"),          ("👤 Профиль", "menu_profile")],
         )
 
 async def get_or_create_user(tg_id: int, username: str) -> User:
@@ -73,36 +74,9 @@ async def get_user(tg_id: int) -> User | None:
         res = await s.execute(select(User).where(User.telegram_id == tg_id))
         return res.scalar_one_or_none()
 
-REGIONS = ["WEU", "EEU", "NA", "SA", "CN", "SEA"]
-ROLE_NAMES = {1: "Carry", 2: "Mid", 3: "Offlane", 4: "Soft Sup", 5: "Hard Sup"}
-
-# ══════════════════════════════════════════════
-# /start
-# ══════════════════════════════════════════════
-@router.message(CommandStart())
-async def cmd_start(msg: Message, state: FSMContext):
-    await state.clear()
-    u = await get_or_create_user(msg.from_user.id, msg.from_user.username or "")
-
-    if u.role == "spectator":
-        await state.set_state(RegStates.choose_role)
-        await msg.answer(
-            "👋 <b>Добро пожаловать в DOTA 2 FM!</b>\n\n"
-            "Симулятор про-сцены Dota 2.\n"
-            "Выбери свою роль:",
-            reply_markup=kb(
-                [("🎯 General Manager", "role_gm")],
-                [("🏆 Tournament Organizer", "role_to")],
-                [("👁 Spectator (наблюдатель)", "role_spectator")],
-            )
-        )
-    else:
-        await show_main_menu(msg, u)
-
 async def show_main_menu(msg: Message, u: User):
     role_label = {"gm": "General Manager", "to": "Tournament Organizer",
                   "spectator": "Spectator", "admin": "Admin"}.get(u.role, u.role)
-
     entity = "—"
     if u.role == "gm" and u.team_id:
         async with async_session() as s:
@@ -113,7 +87,8 @@ async def show_main_menu(msg: Message, u: User):
         async with async_session() as s:
             o = await s.get(Organizer, u.organizer_id)
             if o:
-                entity = f"{o.logo_emoji} {o.name} (Rep: {o.reputation:.0f})"
+                v = "✅" if o.is_verified else "⏳"
+                entity = f"{v} {o.logo_emoji} {o.name} (Rep: {o.reputation:.0f})"
 
     await msg.answer(
         f"🎮 <b>DOTA 2 FM</b>\n\n"
@@ -122,6 +97,27 @@ async def show_main_menu(msg: Message, u: User):
         f"Выбери действие:",
         reply_markup=main_menu_kb(u.role)
     )
+
+# ══════════════════════════════════════════════
+# /start
+# ══════════════════════════════════════════════
+@router.message(CommandStart())
+async def cmd_start(msg: Message, state: FSMContext):
+    await state.clear()
+    u = await get_or_create_user(msg.from_user.id, msg.from_user.username or "")
+    if u.role == "spectator":
+        await state.set_state(RegStates.choose_role)
+        await msg.answer(
+            "👋 <b>Добро пожаловать в DOTA 2 FM!</b>\n\n"
+            "Симулятор про-сцены Dota 2.\nВыбери свою роль:",
+            reply_markup=kb(
+                [("🎯 General Manager", "role_gm")],
+                [("🏆 Tournament Organizer", "role_to")],
+                [("👁 Spectator (наблюдатель)", "role_spectator")],
+            )
+        )
+    else:
+        await show_main_menu(msg, u)
 
 # ══════════════════════════════════════════════
 # Выбор роли
@@ -140,15 +136,12 @@ async def cb_choose_role(cb: CallbackQuery, state: FSMContext):
                 await s.commit()
         await state.clear()
         await cb.message.edit_text(
-            "👁 <b>Spectator</b> — ты в режиме наблюдателя.\n\n"
-            "Можешь смотреть статистику, турниры и рейтинги.\n"
-            "Напиши /start чтобы открыть меню."
+            "👁 <b>Spectator</b>\n\nНапиши /start чтобы открыть меню."
         )
         return
 
     if role == "gm":
         await state.set_state(GMStates.choose_team)
-        # Загружаем список команд без владельца
         async with async_session() as s:
             res = await s.execute(
                 select(Team).where(Team.owner_user_id.is_(None)).order_by(Team.world_ranking)
@@ -156,20 +149,16 @@ async def cb_choose_role(cb: CallbackQuery, state: FSMContext):
             teams = res.scalars().all()
 
         if not teams:
-            await cb.message.edit_text("😔 Все команды уже заняты. Попробуй позже.")
-            await state.clear()
-            return
-
-        rows = []
-        for t in teams[:12]:  # показываем первые 12
-            rows.append([(f"{t.logo_emoji} {t.name} [{t.tag}] #{t.world_ranking}",
-                          f"pick_team_{t.id}")])
+            rows = []
+        else:
+            rows = [
+                [(f"{t.logo_emoji} {t.name} [{t.tag}] #{t.world_ranking}", f"pick_team_{t.id}")]
+                for t in teams[:12]
+            ]
         rows.append([("➕ Создать свою команду", "pick_team_new")])
 
         await cb.message.edit_text(
-            "🎯 <b>General Manager</b>\n\n"
-            "Выбери команду которой хочешь управлять\n"
-            "или создай новую:",
+            "🎯 <b>General Manager</b>\n\nВыбери команду или создай свою:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text=t, callback_data=d)]
                 for row in rows for t, d in row
@@ -182,11 +171,11 @@ async def cb_choose_role(cb: CallbackQuery, state: FSMContext):
         await cb.message.edit_text(
             "🏆 <b>Tournament Organizer</b>\n\n"
             "Введи название своей организации:\n"
-            "<i>Например: PGL Esports, ESL Gaming, WePlay Esports</i>"
+            "<i>Например: PGL Esports, ESL Gaming</i>"
         )
 
 # ══════════════════════════════════════════════
-# GM — выбор команды
+# GM — выбор существующей команды
 # ══════════════════════════════════════════════
 @router.callback_query(GMStates.choose_team, F.data.startswith("pick_team_"))
 async def cb_pick_team(cb: CallbackQuery, state: FSMContext):
@@ -195,20 +184,17 @@ async def cb_pick_team(cb: CallbackQuery, state: FSMContext):
 
     if val == "new":
         await state.set_state(GMStates.create_name)
-        await cb.message.edit_text(
-            "➕ <b>Создание команды</b>\n\n"
-            "Введи название команды:"
+        return await cb.message.edit_text(
+            "➕ <b>Создание команды — Шаг 1/3</b>\n\nВведи название команды:"
         )
-        return
 
     team_id = int(val)
     async with async_session() as s:
         t = await s.get(Team, team_id)
         if not t or t.owner_user_id is not None:
-            await cb.message.edit_text("❌ Команда уже занята. Напиши /start чтобы выбрать другую.")
+            await cb.message.edit_text("❌ Команда уже занята. Напиши /start.")
             await state.clear()
             return
-
         res = await s.execute(select(User).where(User.telegram_id == cb.from_user.id))
         u = res.scalar_one_or_none()
         if u:
@@ -217,14 +203,14 @@ async def cb_pick_team(cb: CallbackQuery, state: FSMContext):
             t.owner_user_id = u.id
             await s.commit()
 
-        # Загрузить игроков
         from database.models import Player
         pres = await s.execute(select(Player).where(Player.team_id == team_id).order_by(Player.primary_role))
         players = pres.scalars().all()
 
-    roster_text = ""
-    for p in players:
-        roster_text += f"  [{ROLE_NAMES.get(p.primary_role,'?')}] <b>{p.nickname}</b> — {p.nationality} ({p.age} лет)\n"
+    roster_text = "\n".join(
+        f"  [{ROLE_NAMES.get(p.primary_role,'?')}] <b>{p.nickname}</b> — {p.nationality} ({p.age} л.)"
+        for p in players
+    ) or "  <i>Нет игроков</i>"
 
     await state.clear()
     await cb.message.edit_text(
@@ -232,7 +218,7 @@ async def cb_pick_team(cb: CallbackQuery, state: FSMContext):
         f"Регион: {t.region} | Рейтинг: #{t.world_ranking}\n"
         f"Бюджет: <b>${t.budget_current:,.0f}</b>\n"
         f"DPC: <b>{t.dpc_points_current} pts</b>\n\n"
-        f"<b>Ростер:</b>\n{roster_text}\n"
+        f"<b>Ростер:</b>\n{roster_text}\n\n"
         f"Напиши /start чтобы открыть главное меню."
     )
 
@@ -248,7 +234,7 @@ async def gm_create_name(msg: Message, state: FSMContext):
     await state.set_state(GMStates.create_tag)
     await msg.answer(
         f"Название: <b>{name}</b>\n\n"
-        "Введи короткий тег команды (2-6 букв):\n"
+        "<b>Шаг 2/3</b> — Введи тег команды (2-6 букв):\n"
         "<i>Например: TL, OG, EG, VP</i>"
     )
 
@@ -256,15 +242,15 @@ async def gm_create_name(msg: Message, state: FSMContext):
 async def gm_create_tag(msg: Message, state: FSMContext):
     tag = msg.text.strip().upper()
     if len(tag) < 2 or len(tag) > 6:
-        return await msg.answer("❌ Тег должен быть от 2 до 6 символов.")
+        return await msg.answer("❌ Тег от 2 до 6 символов.")
     await state.update_data(team_tag=tag)
     await state.set_state(GMStates.create_region)
     await msg.answer(
-        f"Тег: <b>{tag}</b>\n\nВыбери регион команды:",
+        f"Тег: <b>{tag}</b>\n\n<b>Шаг 3/3</b> — Выбери регион:",
         reply_markup=kb(
             [("🌍 WEU", "creg_WEU"), ("🌏 EEU", "creg_EEU")],
-            [("🌎 NA", "creg_NA"),   ("🌎 SA", "creg_SA")],
-            [("🌏 CN", "creg_CN"),   ("🌏 SEA", "creg_SEA")],
+            [("🌎 NA",  "creg_NA"),  ("🌎 SA",  "creg_SA")],
+            [("🌏 CN",  "creg_CN"),  ("🌏 SEA", "creg_SEA")],
         )
     )
 
@@ -272,21 +258,17 @@ async def gm_create_tag(msg: Message, state: FSMContext):
 async def gm_create_region(cb: CallbackQuery, state: FSMContext):
     await cb.answer()
     region = cb.data.replace("creg_", "")
-    data = await state.get_data()
-    name = data["team_name"]
-    tag  = data["team_tag"]
+    data   = await state.get_data()
+    name, tag = data["team_name"], data["team_tag"]
 
     async with async_session() as s:
-        # Проверить уникальность имени
         existing = (await s.execute(select(Team).where(Team.name == name))).scalar_one_or_none()
         if existing:
-            await cb.message.edit_text(f"❌ Команда с названием <b>{name}</b> уже существует. Напиши /start и попробуй снова.")
+            await cb.message.edit_text(f"❌ Команда <b>{name}</b> уже существует. Напиши /start.")
             await state.clear()
             return
-
         res = await s.execute(select(User).where(User.telegram_id == cb.from_user.id))
         u = res.scalar_one_or_none()
-
         new_team = Team(
             name=name, tag=tag, region=region,
             prestige=1, fan_base=500, sponsor_level=1,
@@ -298,22 +280,19 @@ async def gm_create_region(cb: CallbackQuery, state: FSMContext):
         )
         s.add(new_team)
         await s.flush()
-
         if u:
             u.role = "gm"
             u.team_id = new_team.id
             new_team.owner_user_id = u.id
-
         await s.commit()
-        team_id = new_team.id
 
     await state.clear()
     await cb.message.edit_text(
         f"🎮 <b>Команда создана!</b>\n\n"
         f"Название: <b>{name}</b> [{tag}]\n"
         f"Регион: <b>{region}</b>\n"
-        f"Бюджет: <b>$200,000</b> (стартовый)\n\n"
-        f"У тебя пока нет игроков. Используй /market чтобы найти свободных агентов.\n\n"
+        f"Бюджет: <b>$200,000</b>\n\n"
+        f"Используй /market чтобы найти игроков.\n"
         f"Напиши /start чтобы открыть главное меню."
     )
 
@@ -329,12 +308,12 @@ async def to_create_name(msg: Message, state: FSMContext):
     await state.set_state(TOStates.create_tag)
     await msg.answer(
         f"Название: <b>{name}</b>\n\n"
-        "Введи короткий тег организации (2-6 букв):\n"
+        "Введи тег организации (2-6 букв):\n"
         "<i>Например: PGL, ESL, WP, DH</i>"
     )
 
 @router.message(TOStates.create_tag)
-async def to_create_tag(msg: Message, state: FSMContext):
+async def to_create_tag(msg: Message, state: FSMContext, bot: Bot):
     tag = msg.text.strip().upper()
     if len(tag) < 2 or len(tag) > 6:
         return await msg.answer("❌ Тег от 2 до 6 символов.")
@@ -347,10 +326,8 @@ async def to_create_tag(msg: Message, state: FSMContext):
             await msg.answer(f"❌ Организация <b>{name}</b> уже существует.")
             await state.clear()
             return
-
         res = await s.execute(select(User).where(User.telegram_id == msg.from_user.id))
         u = res.scalar_one_or_none()
-
         org = Organizer(
             user_id=u.id if u else 0,
             name=name, tag=tag,
@@ -360,33 +337,35 @@ async def to_create_tag(msg: Message, state: FSMContext):
         )
         s.add(org)
         await s.flush()
-
         if u:
             u.role = "to"
             u.organizer_id = org.id
         await s.commit()
-
-    # В конце to_create_tag, после await s.commit():
-        from handlers.admin.time_control import notify_admins_new_to
-        from aiogram import Bot
-        bot = Bot.get_current()
-        if bot:
-            await notify_admins_new_to(bot, org, u)
+        # Нужно получить org и u после коммита для уведомления
+        org_id = org.id
 
     await state.clear()
     await msg.answer(
         f"🏆 <b>Организация создана!</b>\n\n"
         f"Название: <b>{name}</b> [{tag}]\n"
         f"Репутация: <b>0</b> (Tier D)\n"
-        f"Стартовый баланс: <b>$50,000</b>\n\n"
+        f"Баланс: <b>$50,000</b>\n\n"
         f"⏳ Заявка отправлена на верификацию Admin.\n"
-        f"После одобрения сможешь создавать турниры Tier D/C.\n\n"
-        f"Напиши /start чтобы открыть главное меню.",
+        f"После одобрения сможешь создавать турниры.\n\n"
+        f"Напиши /start чтобы открыть главное меню."
     )
-    # TODO: уведомить Admin
+
+    # Уведомить Admin — bot передан как параметр
+    from handlers.admin.time_control import notify_admins_new_to
+    async with async_session() as s:
+        o = await s.get(Organizer, org_id)
+        res = await s.execute(select(User).where(User.telegram_id == msg.from_user.id))
+        u2 = res.scalar_one_or_none()
+    if o and u2:
+        await notify_admins_new_to(bot, o, u2)
 
 # ══════════════════════════════════════════════
-# Главное меню — обработка кнопок
+# Главное меню — кнопки
 # ══════════════════════════════════════════════
 @router.callback_query(F.data.startswith("menu_"))
 async def cb_menu(cb: CallbackQuery):
@@ -403,15 +382,18 @@ async def cb_menu(cb: CallbackQuery):
             res = await s.execute(select(Player).where(Player.team_id == u.team_id).order_by(Player.primary_role))
             players = res.scalars().all()
         if not players:
-            return await cb.message.answer(f"{t.logo_emoji} <b>{t.name}</b>\n\nРостер пустой. Используй /market для поиска игроков.")
-
+            return await cb.message.answer(
+                f"{t.logo_emoji} <b>{t.name}</b>\n\nРостер пустой.",
+                reply_markup=kb([("🔙 Меню", "back_main")])
+            )
+        FORM_E = lambda f: "⭐" if f>=86 else "🟢" if f>=71 else "🟡" if f>=51 else "🟠" if f>=31 else "🔴"
         text = f"{t.logo_emoji} <b>Ростер {t.name}</b>\n\n"
-        FORM_EMOJI = lambda f: "⭐" if f>=86 else "🟢" if f>=71 else "🟡" if f>=51 else "🟠" if f>=31 else "🔴"
         for p in players:
             text += (
                 f"<b>[{ROLE_NAMES.get(p.primary_role,'?')}] {p.nickname}</b>\n"
-                f"  {FORM_EMOJI(p.form)} Форма: {p.form:.0f} | {p.nationality} | {p.age} л.\n"
-                f"  ⚙️ Mech:{p.mechanics:.0f} Lane:{p.laning:.0f} GS:{p.game_sense:.0f} TF:{p.teamfight:.0f}\n"
+                f"  {FORM_E(p.form)} Форма: {p.form:.0f} | {p.nationality} | {p.age} л.\n"
+                f"  ⚙️ Mech:{p.mechanics:.0f} Lane:{p.laning:.0f} "
+                f"GS:{p.game_sense:.0f} TF:{p.teamfight:.0f}\n"
                 f"  💵 ${p.salary_per_month:,.0f}/мес\n\n"
             )
         await cb.message.answer(text, reply_markup=kb([("🔙 Меню", "back_main")]))
@@ -419,30 +401,13 @@ async def cb_menu(cb: CallbackQuery):
     elif action == "market":
         from database.models import Player
         async with async_session() as s:
-            res = await s.execute(select(Player).where(Player.team_id.is_(None)).limit(15))
+            res = await s.execute(select(Player).where(Player.team_id.is_(None)).limit(20))
             agents = res.scalars().all()
         if not agents:
-            return await cb.message.answer("🛒 Свободных агентов нет.")
+            return await cb.message.answer("🛒 Свободных агентов нет.", reply_markup=kb([("🔙 Меню", "back_main")]))
         text = "🛒 <b>Свободные агенты</b>\n\n"
         for p in agents:
-            text += f"[{ROLE_NAMES.get(p.primary_role,'?')}] <b>{p.nickname}</b> — {p.nationality}, {p.age} л. | ${p.salary_per_month:,.0f}/мес\n"
-        await cb.message.answer(text, reply_markup=kb([("🔙 Меню", "back_main")]))
-
-    elif action == "profile":
-        if not u:
-            return await cb.message.answer("❌ Профиль не найден.")
-        role_label = {"gm":"General Manager","to":"Tournament Organizer","spectator":"Spectator","admin":"Admin"}.get(u.role, u.role)
-        text = (
-            f"👤 <b>Профиль</b>\n\n"
-            f"Telegram: @{cb.from_user.username}\n"
-            f"ID: <code>{cb.from_user.id}</code>\n"
-            f"Роль: <b>{role_label}</b>\n"
-        )
-        if u.team_id:
-            async with async_session() as s:
-                t = await s.get(Team, u.team_id)
-                if t:
-                    text += f"Команда: <b>{t.logo_emoji} {t.name}</b>\n"
+            text += f"[{ROLE_NAMES.get(p.primary_role,'?')}] <b>{p.nickname}</b> — {p.nationality or '??'}, {p.age} л. | ${p.salary_per_month:,.0f}/мес\n"
         await cb.message.answer(text, reply_markup=kb([("🔙 Меню", "back_main")]))
 
     elif action == "budget":
@@ -453,12 +418,12 @@ async def cb_menu(cb: CallbackQuery):
             t = await s.get(Team, u.team_id)
             res = await s.execute(select(Player).where(Player.team_id == u.team_id))
             players = res.scalars().all()
-        salary_total = sum(p.salary_per_month for p in players)
+        salary = sum(p.salary_per_month for p in players)
         await cb.message.answer(
             f"💰 <b>Финансы {t.name}</b>\n\n"
             f"Текущий бюджет: <b>${t.budget_current:,.0f}</b>\n"
-            f"Зарплаты/мес: <b>${salary_total:,.0f}</b>\n"
-            f"Прогноз на след. месяц: <b>${t.budget_current - salary_total:,.0f}</b>\n"
+            f"Зарплаты/мес: <b>${salary:,.0f}</b>\n"
+            f"Прогноз: <b>${t.budget_current - salary:,.0f}</b>\n"
             f"Всего заработано: <b>${t.total_earnings:,.0f}</b>",
             reply_markup=kb([("🔙 Меню", "back_main")])
         )
@@ -476,7 +441,7 @@ async def cb_menu(cb: CallbackQuery):
         async with async_session() as s:
             res = await s.execute(select(Team).order_by(Team.world_ranking).limit(20))
             teams = res.scalars().all()
-        text = "🌍 <b>Мировой рейтинг команд</b>\n\n"
+        text = "🌍 <b>Мировой рейтинг</b>\n\n"
         for t in teams:
             text += f"#{t.world_ranking} {t.logo_emoji} <b>{t.name}</b> [{t.region}] — {t.wins}W/{t.losses}L\n"
         await cb.message.answer(text, reply_markup=kb([("🔙 Меню", "back_main")]))
@@ -485,7 +450,9 @@ async def cb_menu(cb: CallbackQuery):
         from database.models import Tournament
         async with async_session() as s:
             res = await s.execute(
-                select(Tournament).where(Tournament.status.in_(["upcoming","approved","group","playoffs"])).limit(10)
+                select(Tournament)
+                .where(Tournament.status.in_(["upcoming","approved","group","playoffs"]))
+                .limit(10)
             )
             trns = res.scalars().all()
         if not trns:
@@ -500,21 +467,50 @@ async def cb_menu(cb: CallbackQuery):
             return await cb.message.answer("❌ У тебя нет организации.")
         async with async_session() as s:
             o = await s.get(Organizer, u.organizer_id)
-        verified = "✅ Верифицирован" if o.is_verified else "⏳ Ожидает верификации"
+        v = "✅ Верифицирован" if o.is_verified else "⏳ Ожидает верификации"
         await cb.message.answer(
             f"{o.logo_emoji} <b>{o.name}</b> [{o.tag}]\n\n"
             f"Репутация: <b>{o.reputation:.0f}</b> (Tier {o.reputation_tier})\n"
-            f"Статус: {verified}\n"
+            f"Статус: {v}\n"
             f"Баланс: <b>${o.balance_usd:,.0f}</b>\n"
-            f"Турниров проведено: <b>{o.total_tournaments_held}</b>",
+            f"Турниров: <b>{o.total_tournaments_held}</b>",
             reply_markup=kb([("🔙 Меню", "back_main")])
         )
 
     elif action == "to_create":
-        await cb.message.answer("Используй команду /to tournament create для создания турнира.")
+        await cb.message.answer("Используй команду /to tournament create")
+
+    elif action == "to_list":
+        await cb.message.answer("Используй команду /to tournament list")
+
+    elif action == "to_sponsors":
+        await cb.message.answer("💼 Система спонсоров — в разработке.", reply_markup=kb([("🔙 Меню", "back_main")]))
 
     elif action == "schedule":
         await cb.message.answer("📅 Расписание матчей — в разработке.", reply_markup=kb([("🔙 Меню", "back_main")]))
+
+    elif action == "profile":
+        if not u:
+            return await cb.message.answer("❌ Профиль не найден.")
+        role_l = {"gm":"General Manager","to":"Tournament Organizer",
+                  "spectator":"Spectator","admin":"Admin"}.get(u.role, u.role)
+        text = (
+            f"👤 <b>Профиль</b>\n\n"
+            f"Telegram: @{cb.from_user.username}\n"
+            f"ID: <code>{cb.from_user.id}</code>\n"
+            f"Роль: <b>{role_l}</b>\n"
+        )
+        if u.team_id:
+            async with async_session() as s:
+                t = await s.get(Team, u.team_id)
+                if t:
+                    text += f"Команда: <b>{t.logo_emoji} {t.name}</b>\n"
+        if u.organizer_id:
+            async with async_session() as s:
+                o = await s.get(Organizer, u.organizer_id)
+                if o:
+                    text += f"Организация: <b>{o.logo_emoji} {o.name}</b>\n"
+        await cb.message.answer(text, reply_markup=kb([("🔙 Меню", "back_main")]))
 
 @router.callback_query(F.data == "back_main")
 async def cb_back_main(cb: CallbackQuery):
@@ -524,7 +520,7 @@ async def cb_back_main(cb: CallbackQuery):
         await show_main_menu(cb.message, u)
 
 # ══════════════════════════════════════════════
-# /help
+# /help и /me
 # ══════════════════════════════════════════════
 @router.message(Command("help"))
 async def cmd_help(msg: Message):
@@ -532,16 +528,16 @@ async def cmd_help(msg: Message):
         "📚 <b>Команды DOTA 2 FM</b>\n\n"
         "/start — главное меню\n"
         "/me — профиль\n\n"
-        "<b>GM:</b>\n"
-        "/roster — состав\n"
-        "/market — свободные агенты\n\n"
         "<b>TO:</b>\n"
         "/to tournament create — создать турнир\n"
+        "/to tournament list — мои турниры\n"
         "/to profile — профиль TO\n\n"
         "<b>Admin:</b>\n"
         "/admin time status\n"
-        "/admin time advance\n"
+        "/admin time advance [n]\n"
         "/admin tournament pending\n"
+        "/admin to pending\n"
+        "/admin patch apply &lt;version&gt;\n"
         "/admin backup now"
     )
 
