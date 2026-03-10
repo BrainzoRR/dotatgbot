@@ -280,3 +280,44 @@ class TournamentApplication(Base):
     applied_at = Column(DateTime, default=datetime.utcnow)
     slot_type = Column(String(16), default="qualifier")
     status = Column(String(16), default="pending")
+
+
+class TrainingSession(Base):
+    __tablename__ = "training_sessions"
+    id           = Column(Integer, primary_key=True)
+    team_id      = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    focus        = Column(String(16), nullable=False)   # MECHANICS/LANING/etc
+    intensity    = Column(Integer, default=3)           # 1(Low) / 3(Med) / 5(High)
+    scheduled_at = Column(DateTime, default=datetime.utcnow)
+    result       = Column(JSON, default=dict)           # {nick: {stat: gain, ...}}
+    fatigue_added = Column(Integer, default=0)
+    stat_gained  = Column(String(16), nullable=True)    # primary stat trained
+
+
+class SponsorDeal(Base):
+    __tablename__ = "sponsor_deals"
+    id               = Column(Integer, primary_key=True)
+    organizer_id     = Column(Integer, ForeignKey("organizers.id"), nullable=True)
+    team_id          = Column(Integer, ForeignKey("teams.id"), nullable=True)
+    sponsor_name     = Column(String(64), nullable=False)
+    deal_type        = Column(String(16), default="co-sponsor")  # title/co-sponsor/equipment
+    amount_usd       = Column(Float, default=0)
+    duration_seasons = Column(Integer, default=1)
+    requirements     = Column(JSON, default=dict)
+    start_season     = Column(Integer, nullable=False, default=1)
+    end_season       = Column(Integer, nullable=False, default=2)
+    status           = Column(String(16), default="active")   # active/expired/negotiating
+    created_at       = Column(DateTime, default=datetime.utcnow)
+
+
+class DPCRecord(Base):
+    """История начислений DPC очков — для статистики и аудита."""
+    __tablename__ = "dpc_records"
+    id            = Column(Integer, primary_key=True)
+    team_id       = Column(Integer, ForeignKey("teams.id"), nullable=False)
+    tournament_id = Column(Integer, ForeignKey("tournaments.id"), nullable=False)
+    place         = Column(Integer, nullable=False)
+    points        = Column(Integer, default=0)
+    season        = Column(Integer, default=1)
+    is_lan_bonus  = Column(Boolean, default=False)
+    created_at    = Column(DateTime, default=datetime.utcnow)
