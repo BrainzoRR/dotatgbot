@@ -19,6 +19,10 @@ from handlers.gm.match import router as gm_match_router
 from handlers.to.tournament_create import router as to_create_router
 from handlers.admin.time_control import router as admin_router
 from engine.formats.round_robin import rr_router
+from handlers.gm.transfer import router as gm_transfer_router
+from handlers.gm.training import router as gm_training_router
+from handlers.gm.finance  import router as gm_finance_router
+from handlers.gm.match    import router as gm_match_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -241,6 +245,10 @@ async def main():
     dp.include_router(to_create_router)
     dp.include_router(admin_router)
     dp.include_router(rr_router)
+    dp.include_router(gm_transfer_router)
+    dp.include_router(gm_training_router)
+    dp.include_router(gm_finance_router)
+    dp.include_router(gm_match_router)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
