@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from database.models import Team
 
 async def get_team(s: AsyncSession, team_id: int):
     res = await s.execute(select(Team).where(Team.id == team_id))
